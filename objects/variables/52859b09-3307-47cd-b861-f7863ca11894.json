@@ -1,0 +1,15 @@
+{
+  "qInfo": {
+    "qId": "52859b09-3307-47cd-b861-f7863ca11894",
+    "qType": "variable"
+  },
+  "qMetaDef": {},
+  "qName": "vDir",
+  "qNumberPresentation": {
+    "qType": "U",
+    "qnDec": 10,
+    "qUseThou": 0
+  },
+  "qDefinition": "lib://Magnum Stage-2 (rs360_qlikservice)/Чеки/2022",
+  "qIsScriptCreated": true
+}

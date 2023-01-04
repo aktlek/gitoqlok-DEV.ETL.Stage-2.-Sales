@@ -1,0 +1,15 @@
+{
+  "qInfo": {
+    "qId": "a552eb21-2629-4f6b-a75c-bd2ea20431d3",
+    "qType": "variable"
+  },
+  "qMetaDef": {},
+  "qName": "vMonth",
+  "qNumberPresentation": {
+    "qType": "U",
+    "qnDec": 10,
+    "qUseThou": 0
+  },
+  "qDefinition": "12",
+  "qIsScriptCreated": true
+}

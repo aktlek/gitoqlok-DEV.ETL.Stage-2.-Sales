@@ -1,0 +1,222 @@
+///$tab Main
+SET ThousandSep=',';
+SET DecimalSep='.';
+SET MoneyThousandSep=',';
+SET MoneyDecimalSep='.';
+SET MoneyFormat='$#,##0.00;-$#,##0.00';
+SET TimeFormat='h:mm:ss TT';
+SET DateFormat='M/D/YYYY';
+SET TimestampFormat='M/D/YYYY h:mm:ss[.fff] TT';
+SET FirstWeekDay=6;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='en-US';
+SET CreateSearchIndexOnReload=1;
+SET MonthNames='Jan;Feb;Mar;Apr;May;Jun;Jul;Aug;Sep;Oct;Nov;Dec';
+SET LongMonthNames='January;February;March;April;May;June;July;August;September;October;November;December';
+SET DayNames='Mon;Tue;Wed;Thu;Fri;Sat;Sun';
+SET LongDayNames='Monday;Tuesday;Wednesday;Thursday;Friday;Saturday;Sunday';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+///$tab Раздел 2
+set sReloadAll = 1;
+
+Dates:
+load * Inline [
+	Дата
+];
+
+for Each vDir in DirList('lib://Magnum Stage-2 (rs360_qlikservice)/Чеки/*')
+    let vYear = Right(vDir,4);
+     Trace($(vYear));
+    
+	for Each vDir2 in DirList(vDir & '/*')
+    	let vMonth = Right(vDir2,len(vDir2) - Index(vDir2,'/',-1));
+        Trace($(vMonth));
+    	for Each vFile in FileList(vDir2 & '/*.qvd')
+        	let vDay = left(Right(vFile,len(vFile) - Index(vFile,'/',-1)),Index(Right(vFile,len(vFile) - Index(vFile,'/',-1)),'.') - 1);
+         Concatenate(Dates)
+         Load '$(vMonth)/$(vDay)/$(vYear)' as Дата
+         autogenerate(1);
+        Trace($(vDay));
+		Next vFile
+	Next vDir2
+Next vDir
+
+
+if $(sReloadAll) = 1 then
+
+Чеки:
+  LOAD 
+  	max(Дата) as max_date,
+  	min(Дата) as min_date
+  Resident Dates where Дата >= '2022-01-01';
+
+else
+
+Чеки:
+LOAD 
+  	max(Дата) as max_date,
+  	max(Дата) - 7 as min_date
+  Resident Dates;
+
+end if;
+
+Drop Table Dates;
+
+Dates:
+LOAD 
+    date(min_date+IterNo()-1) as Date,
+    year( date(min_date+IterNo()-1)) as Year,
+    month( date(min_date+IterNo()-1)) as Month,
+    day( date(min_date+IterNo()-1)) as Day
+
+Resident Чеки
+
+While min_date+IterNo()-1<=max_date;
+
+DROP Table Чеки;
+
+For each vDate in FieldValueList('Date')
+	Trace($(vDate));
+    
+    vYear = num(Year(vDate))
+    Trace($(vYear));
+    
+    vMonth = num(Month(vDate))
+    Trace($(vMonth));
+  	
+    vDay = num(Day(vDate))
+    Trace($(vDay));
+    
+        	Data:     	
+               LOAD
+                  "ИД чека",
+                  "ИД пункта чека",
+                  "Дата покупки",
+                  "Дата-время покупки",
+                  "ИД магазина",
+                  "Код бонусной карты",
+                  "ИД клиента",
+                  "Номер телефона клиента",
+                  "Код продукта",
+                  "Код еденицы измерения",
+                  Количество,
+                  "Цена без НДС",
+                  "Цена с НДС",
+                  "Cумма без НДС",
+                  "Cумма с НДС",
+                  "Тип чека",
+                  "Код поставщика",
+                  "Цена из каталого без НДС",
+                  "Сумма скидки"
+                FROM [lib://Magnum Stage-2 (rs360_qlikservice)/Чеки/$(vYear)/$(vMonth)/$(vDay).qvd] (qvd);
+                
+                left join(Data)
+                LOAD Distinct
+                    id as "Код бонусной карты",
+                    club_id as "Код вида клубной карты"
+                FROM [lib://Magnum Stage-1 (rs360_qlikservice)/ADB/dwh_stgll/club_client.qvd]
+                (qvd);
+
+
+                NoConcatenate
+
+                Продажи:
+                Load
+                    "Дата покупки",
+                    "ИД магазина",
+                    "Код продукта",
+                    "Код поставщика",
+                    "Цена без НДС",
+                    "Цена с НДС",
+                    if(Match("Код вида клубной карты",'16','18','21','10','17','22','23'),'Оптом','Розница') as 'Вид продажи',
+                    sum(if("Тип чека" = 'RI',Количество * -1,Количество)) as [Количество],
+                    sum(if("Тип чека" = 'RI',"Cумма без НДС" * -1,"Cумма без НДС")) as "Cумма без НДС",
+                    sum(if("Тип чека" = 'RI',"Cумма с НДС" * -1,"Cумма с НДС")) as "Cумма с НДС"
+                Resident Data Where "Тип чека" = 'SC' or "Тип чека" = 'RI'
+                Group by
+                    "Дата покупки",
+                    "ИД магазина",
+                    "Код продукта",
+                    "Код поставщика",
+                    "Цена без НДС",
+                    "Цена с НДС",
+                    if(Match("Код вида клубной карты",'16','18','21','10','17','22','23'),'Оптом','Розница');
+
+                Drop Table Data;
+                
+                Store Продажи into [lib://Magnum Stage-2 (rs360_qlikservice)/Продажи/$(vYear)/$(vMonth)/$(vDay).qvd] (qvd);
+
+                Drop Table Продажи;
+                
+		next vDate;
+
+Drop Table Dates;
+///$tab Раздел 3
+Exit Script;
+///$tab Раздел
+Чеки:
+LOAD
+    "ИД чека",
+    "ИД пункта чека",
+    "Дата покупки",
+    "Дата-время покупки",
+    "ИД магазина",
+    "Код бонусной карты",
+    "ИД клиента",
+    "Номер телефона клиента",
+    "Код продукта",
+    "Код еденицы измерения",
+    Количество,
+    "Цена без НДС",
+    "Цена с НДС",
+    "Cумма без НДС",
+    "Cумма с НДС",
+    "Тип чека",
+    "Код поставщика",
+    "Цена из каталого без НДС",
+    "Сумма скидки"
+FROM [lib://Magnum Stage-2 (rs360_qlikservice)/Чеки/2022/1/1.qvd]
+(qvd);
+
+left join(Чеки)
+LOAD Distinct
+	id as "Код бонусной карты",
+    club_id as "Код вида клубной карты"
+FROM [lib://Magnum Stage-1 (rs360_qlikservice)/ADB/dwh_stgll/club_client.qvd]
+(qvd);
+
+
+NoConcatenate
+
+Продажи:
+Load
+	"Дата покупки",
+	"ИД магазина",
+    "Код продукта",
+    "Код поставщика",
+    "Цена без НДС",
+    "Цена с НДС",
+    sum(if("Тип чека" = 'RI',Количество * -1,Количество)) as [Количество],
+    sum(if("Тип чека" = 'RI',"Cумма без НДС" * -1,"Cумма без НДС")) as "Cумма без НДС",
+    sum(if("Тип чека" = 'RI',"Cумма с НДС" * -1,"Cумма с НДС")) as "Cумма с НДС"
+Resident Чеки Where "Тип чека" = 'SC' or "Тип чека" = 'RI'
+Group by
+	"Дата покупки",
+	"ИД магазина",
+    "Код продукта",
+    "Код поставщика",
+    "Цена без НДС",
+    "Цена с НДС";
+
+Drop Table Чеки;
+    
+
+
+
+
+
+
+

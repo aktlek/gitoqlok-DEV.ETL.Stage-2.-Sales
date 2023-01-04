@@ -1,0 +1,15 @@
+{
+  "qInfo": {
+    "qId": "bb3fa14a-bcbf-43a7-ac0f-b4bb8cb0dff8",
+    "qType": "variable"
+  },
+  "qMetaDef": {},
+  "qName": "vYear",
+  "qNumberPresentation": {
+    "qType": "U",
+    "qnDec": 10,
+    "qUseThou": 0
+  },
+  "qDefinition": "2022",
+  "qIsScriptCreated": true
+}
